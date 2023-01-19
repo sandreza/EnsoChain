@@ -1,0 +1,11 @@
+name = "EnsoChain"
+uuid = "032d8e57-31bd-444c-baa8-52a5b98c8f00"
+authors = ["Andre Souza <andrenogueirasouza@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+MarkovChainHammer = "38c40fd0-bccb-4723-b30d-b2caea0ad8d9"
+NetCDF = "30363a11-5582-574a-97bb-aa9a979735b9"
+ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
