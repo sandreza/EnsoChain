@@ -142,3 +142,15 @@ scatter!(ax, autocor_Q / autocor_Q[1], color=:purple, label="Generator")
 scatter!(ax, autocor_k / autocor_k[1], color=(:black, 0.5), markersize=20, label="K-step Perron-Frobenius")
 axislegend(ax, position=:rt, framecolor=(:grey, 0.5), patchsize=(50, 50), markersize=100, labelsize=40)
 display(fig)
+
+##
+fig  = Figure(resolution=(1269, 780))
+for i in 1:25
+    ii = (i - 1) % 5 + 1
+    jj = (i - 1) ÷ 5 + 1
+    ax = Axis(fig[ii,jj]; title = "Entry ($ii, $jj)", ylabel = "probability", xlabel = "time")
+    entry_list = [Ps[i][ii,jj] for i in 1:200]
+    scatter!(ax, entry_list, color=(:blue, 0.5), markersize=10, label="k-step predictor")
+    ylims!(ax, (0,maximum(entry_list) * 1.1))
+end
+display(fig)
