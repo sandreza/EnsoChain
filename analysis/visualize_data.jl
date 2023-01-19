@@ -8,7 +8,7 @@ function missing_value_mask(temperature; fill_value=temperature[1, 1, 1])
     return temperature .!= fill_value
 end
 
-reduced_field = temperature[1:3:end, 1:3:end, :]
+reduced_field = temperature[1:2:end, 1:2:end, :]
 mask = missing_value_mask(reduced_field[:, :, 1]) # assume continents don't change in time
 # full_mask = missing_value_mask(temperature)
 
@@ -43,7 +43,7 @@ field2 = @lift reduced_field2[:, :, $iobv]
 heatmap!(ax1, field1, colormap=:balance, colorrange=(-2, 2), interpolate=true)
 heatmap!(ax2, field2, colormap=:balance, colorrange=(-2, 2), interpolate=true)
 display(fig)
-
+##
 itr = 1:200
 record(fig, "enso.mp4", itr; framerate=10) do i
     iobv[] = i # or some other manipulation of the Scene
@@ -53,7 +53,7 @@ end
 timeseries = Vᵀ[:, 1]
 ##
 using MarkovChainHammer, Statistics
-import MarkovChainHammer.TransitionMatrix: generator, perron_frobenius, holding_times
+import MarkovChainHammer.TransitionMatrix: generator, perron_frobenius, holding_times, steady_state
 qu_timeseries = quantile.(Ref(timeseries), (0.2, 0.4, 0.6, 0.8))
 
 function embedding(x, qu_timeseries)
@@ -70,19 +70,20 @@ end
 
 markov_chain = markov_embedding(timeseries, qu_timeseries)
 
-fig = Figure(resolution = (1269, 780))
+fig = Figure(resolution=(1269, 780))
 ax = Axis(fig[1, 1])
 # rescale timeseries to correspond to markov states for plotting purposes
 rescale_timeseries = timeseries .- minimum(timeseries)
 rescale_timeseries ./= -maximum(rescale_timeseries) # accidently made it upside down
-rescale_timeseries = (rescale_timeseries .* (length(union(markov_chain))-1)) .+ (length(union(markov_chain)))
-lines!(ax, markov_chain[1:1000], color=:red, label = "markov")
-lines!(ax, rescale_timeseries[1:1000], color=:blue, label = "rescaled timeseries")
+rescale_timeseries = (rescale_timeseries .* (length(union(markov_chain)) - 1)) .+ (length(union(markov_chain)))
+lines!(ax, markov_chain[1:1000], color=:red, label="markov")
+lines!(ax, rescale_timeseries[1:1000], color=:blue, label="rescaled timeseries")
 axislegend(ax, position=:rb, framecolor=(:grey, 0.5), patchsize=(50, 50), markersize=100, labelsize=40)
-
+display(fig)
 ##
-Q = generator(markov_chain)
-P = perron_frobenius(markov_chain)
+Q = generator(markov_chain) # infinitesimal generator
+P = perron_frobenius(markov_chain) # one-step predictor 
+Ps = [mean([perron_frobenius(markov_chain[i:j:end], length(union(markov_chain))) for i in 1:j]) for j in 1:200] #k-step predictor
 ht = holding_times(markov_chain)
 Λ, V = eigen(Q)
 ##
@@ -110,16 +111,34 @@ function autocovariance(g⃗, Q::Eigen, timelist)
     end
     return autocov
 end
+# for k-step predictor
+function autocovariance(observable, Ps::Vector{Matrix{Float64}}, steps)
+    autocor = zeros(steps + 1)
+    p = steady_state(Ps[1])
+    μ² = sum(observable .* p)^2
+    autocor[1] = observable' * (observable .* p) - μ²
+    for i in 1:steps
+        # p = steady_state(Ps[i])
+        # μ² = sum(observable .* p)^2
+        autocor[i+1] = observable' * Ps[i] * (observable .* p) - μ²
+    end
+    return autocor
+end
 ##
 steps = 200
 tlist = collect(0:steps-1)
-autocor_m = autocovariance(markov_chain; timesteps =  steps)
+autocor_m = autocovariance(markov_chain; timesteps=steps)
 autocor_t = autocovariance(timeseries; timesteps=steps)
+g⃗ = collect(1:5) # observable is the state
+autocor_Q = autocovariance(g⃗, eigen(Q), 1:200)
+autocor_k = autocovariance(g⃗, Ps, 200)
 ##
-fig = Figure()
-ax = Axis(fig[1, 1]; title = "Autocorrelation of Markov Chain")
-lines!(ax, autocor_m /autocor_m[1], color = :red, linewidth = 10, label = "Markov Chain")
-scatter!(ax, autocor_t / autocor_t[1], color = (:blue, 0.5), label = "Timeseries")
-scatter!(ax, exp.(tlist .* Λ[end-1]), color = :purple, label = "Slowest Exponential Decay from Generator")
+##
+fig = Figure(resolution=(1160, 879))
+ax = Axis(fig[1, 1]; title="Autocorrelation of Markov Chain")
+lines!(ax, autocor_m / autocor_m[1], color=:red, linewidth=10, label="Markov Chain")
+scatter!(ax, autocor_t / autocor_t[1], color=(:blue, 0.5), label="Timeseries")
+scatter!(ax, autocor_Q / autocor_Q[1], color=:purple, label="Generator")
+scatter!(ax, autocor_k / autocor_k[1], color=(:black, 0.5), markersize=20, label="K-step Perron-Frobenius")
 axislegend(ax, position=:rt, framecolor=(:grey, 0.5), patchsize=(50, 50), markersize=100, labelsize=40)
 display(fig)
